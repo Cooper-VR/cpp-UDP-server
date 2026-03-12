@@ -1,47 +1,49 @@
 #include <iostream>
-#include <cstring>
-#include <ratio>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <string>
 #include <vector>
 #include <chrono>
 #include <thread>
 #include <mutex>
 #include "serverHelper.h"
+#include <ncurses.h>
 
 using namespace std;
 
 const int TICK_MS = 16;
 
 void threadedTimer(){
-    cout << "this is threaded\n";
     auto start = chrono::steady_clock::now();
     auto end = chrono::steady_clock::now();
+    auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start);
 
     while(1){
 
         start = chrono::steady_clock::now();
 
-        auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start);
-
-
         lock_guard<mutex> lock(clientMutex);
         for (int i = 0; i < clientTimeouts.size(); i++){
             clientTimeouts[i] += elapsed.count();
             if (clientTimeouts[i] > 10000){
+                coutMessage = "killing user -> " + clientTimeouts[i];
                 killUser(i);
             }
         }
 
         auto end = chrono::steady_clock::now();
 
+        elapsed = chrono::duration_cast<chrono::milliseconds>(end - start);
+
     }
 }
 
 int main(){
+    initscr();
+    noecho();
+    curs_set(0);
+
     address.sin_family = AF_INET;
     address.sin_port = htons(7777);
     address.sin_addr.s_addr = INADDR_ANY;
@@ -63,6 +65,10 @@ int main(){
     t.detach();
 
     while (1){
+        clear();
+
+        mvprintw(0, 0, "Server Running");
+        mvprintw(4, 0, "Timeouts: 2000");
 
         //we make a client socket
         sockaddr_in client_addr;
@@ -70,11 +76,15 @@ int main(){
 
         auto start = chrono::steady_clock::now();
 
-        cout << "doing networking" << endl;
 
         recieveData(&client_addr, &client_len);
         sendData(client_len);
 
+        mvprintw(0, 32, coutMessage.c_str());
+
+        refresh();
+
+        //napms(100);
         auto end = chrono::steady_clock::now();
 
         auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start);
@@ -84,7 +94,11 @@ int main(){
         }
         
     }
+
+    endwin();
+
     close(sock);
+    
 
     return 0;
 }

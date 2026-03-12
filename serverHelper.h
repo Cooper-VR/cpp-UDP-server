@@ -8,10 +8,10 @@
 #include <unistd.h>
 #include <ratio>
 #include <mutex>
+#include <ncurses.h>
 
 using namespace std;
 
-vector<int> clientTimeouts;
 mutex clientMutex;
 
 int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -19,16 +19,23 @@ char ip [INET_ADDRSTRLEN] = "";
 struct sockaddr_in address{};
 
 vector<sockaddr_in> client_addrs;
+vector<int> clientTimeouts;
+vector<string> lastMessages;
+
+string coutMessage;
 
 void killUser(int index){
-    cout << "removing user" << endl;
+    coutMessage += " removing user";
     sockaddr_in tempClient = client_addrs[index];
     int tempTime = clientTimeouts[index];
+    string tempMsg = lastMessages[index];
 
     client_addrs[index] = client_addrs[client_addrs.size() - 1];
     clientTimeouts[index] = clientTimeouts[clientTimeouts.size() - 1];
+    lastMessages[index] = lastMessages[lastMessages.size() - 1];
     clientTimeouts.pop_back();
     client_addrs.pop_back();
+    lastMessages.pop_back();
 
 }
 
@@ -58,15 +65,21 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
         new_client = *client_addr;
         client_addrs.push_back(new_client);
         clientTimeouts.push_back(0);
-        cout << "new client" << endl;
+        lastMessages.push_back("");
+        coutMessage = "new client";
         index = client_addrs.size() - 1;
     }
 
     clientTimeouts[index] = 0;
+    lastMessages[index] = bufferRec;
 
     if (strncmp(bufferRec, "killUser", bytes) == 0){
+        coutMessage = "got kill message";
         killUser(index);
     }
+
+
+
 }
 
 void sendData(socklen_t client_len){
@@ -75,8 +88,11 @@ void sendData(socklen_t client_len){
     strcpy(buffer, "hello from the server");
 
     lock_guard<mutex> lock(clientMutex);
-
+    mvprintw(2, 0, "Clients: %d", client_addrs.size());
     for (int i = 0; i < client_addrs.size(); i++){
         sendto(sock, buffer, strlen(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
+        mvprintw(6+(i*2), 0, lastMessages[i].c_str());
+        mvprintw(6+(i*2), 32, to_string(clientTimeouts[i]).c_str());
+
     }
 }
