@@ -7,8 +7,12 @@
 #include <cstring>
 #include <unistd.h>
 #include <ratio>
+#include <mutex>
 
 using namespace std;
+
+vector<int> clientTimeouts;
+mutex clientMutex;
 
 int sock = socket(AF_INET, SOCK_DGRAM, 0);
 char ip [INET_ADDRSTRLEN] = "";
@@ -16,11 +20,14 @@ struct sockaddr_in address{};
 
 vector<sockaddr_in> client_addrs;
 
-
 void killUser(int index){
     cout << "removing user" << endl;
     sockaddr_in tempClient = client_addrs[index];
+    int tempTime = clientTimeouts[index];
+
     client_addrs[index] = client_addrs[client_addrs.size() - 1];
+    clientTimeouts[index] = clientTimeouts[clientTimeouts.size() - 1];
+    clientTimeouts.pop_back();
     client_addrs.pop_back();
 
 }
@@ -37,6 +44,7 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
 
     bool found = false;
     int index = 0;
+    lock_guard<mutex> lock(clientMutex);
     for (int i = 0; i < client_addrs.size(); i++){
         if (client_addrs[i].sin_addr.s_addr == client_addr->sin_addr.s_addr && client_addrs[i].sin_port == client_addr->sin_port){
             found = true;
@@ -49,9 +57,12 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
         sockaddr_in new_client;
         new_client = *client_addr;
         client_addrs.push_back(new_client);
+        clientTimeouts.push_back(0);
         cout << "new client" << endl;
         index = client_addrs.size() - 1;
     }
+
+    clientTimeouts[index] = 0;
 
     if (strncmp(bufferRec, "killUser", bytes) == 0){
         killUser(index);
@@ -63,7 +74,9 @@ void sendData(socklen_t client_len){
     char buffer[1024] = { 0 };
     strcpy(buffer, "hello from the server");
 
+    lock_guard<mutex> lock(clientMutex);
+
     for (int i = 0; i < client_addrs.size(); i++){
-        sendto(sock, buffer, sizeof(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
+        sendto(sock, buffer, strlen(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
     }
 }

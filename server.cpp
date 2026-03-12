@@ -9,12 +9,37 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <mutex>
 #include "serverHelper.h"
 
 using namespace std;
 
 const int TICK_MS = 16;
 
+void threadedTimer(){
+    cout << "this is threaded\n";
+    auto start = chrono::steady_clock::now();
+    auto end = chrono::steady_clock::now();
+
+    while(1){
+
+        start = chrono::steady_clock::now();
+
+        auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start);
+
+
+        lock_guard<mutex> lock(clientMutex);
+        for (int i = 0; i < clientTimeouts.size(); i++){
+            clientTimeouts[i] += elapsed.count();
+            if (clientTimeouts[i] > 10000){
+                killUser(i);
+            }
+        }
+
+        auto end = chrono::steady_clock::now();
+
+    }
+}
 
 int main(){
     address.sin_family = AF_INET;
@@ -32,8 +57,10 @@ int main(){
         return 1;
     }
 
-    //we listen o=n that socket, only 1 person can be there at a time
-    listen(sock, 1);
+    thread t(threadedTimer);
+
+    //detach makes it run at the same time
+    t.detach();
 
     while (1){
 
@@ -42,6 +69,8 @@ int main(){
         socklen_t client_len = sizeof(client_addr);
 
         auto start = chrono::steady_clock::now();
+
+        cout << "doing networking" << endl;
 
         recieveData(&client_addr, &client_len);
         sendData(client_len);
