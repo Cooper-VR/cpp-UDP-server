@@ -1,24 +1,33 @@
 #include <iostream>
-#include <cstring>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <fstream>
-#include <sstream>
 #include <string>
+#include <signal.h>
 
 using namespace std;
 
+int sock;
+struct sockaddr_in address{};
+
+void handle_exit(int sig){
+    string msg = "killUser";
+    sendto(sock, msg.c_str(), sizeof(msg), 0, (sockaddr*)&address, sizeof(address));
+    cout << "killed user" << endl;
+    close(sock);
+    exit(0);
+}
+
 int main(){
+    signal(SIGINT, handle_exit);
 
     //first we make a socket to put everything through
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
 
     char ip [INET_ADDRSTRLEN] = "";
 
     //we need to make a struct that is binded to the socket
-    struct sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_port = htons(7777);
     address.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -38,6 +47,8 @@ int main(){
 
         cout << buffer << endl;
     }
+
+
 
     close(sock);
 
