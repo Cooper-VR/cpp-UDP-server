@@ -4,15 +4,29 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <fstream>
-#include <sstream>
 #include <string>
 #include <vector>
+#include <time.h>
 
 using namespace std;
 
+vector<sockaddr_in> client_addrs;
+vector<double> clientTimes;
+
+void killUser(int index){
+    cout << "removing user" << endl;
+    sockaddr_in tempClient = client_addrs[index];
+    double time = clientTimes[index];
+    clientTimes[clientTimes.size() - 1] = clientTimes[index];
+    client_addrs[index] = client_addrs[client_addrs.size() - 1];
+    client_addrs.pop_back();
+    clientTimes.pop_back();
+
+}
+
 int main(){
 
+    time_t prev = time(0);
     //first we make a socket to put everything through
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -38,8 +52,6 @@ int main(){
     //we listen o=n that socket, only 1 person can be there at a time
     listen(sock, 1);
 
-    vector<sockaddr_in> client_addrs;
-
     while (1){
 
         //we make a client socket
@@ -56,7 +68,7 @@ int main(){
 
 
         bool found = false;
-        int index = 0;;
+        int index = 0;
         for (int i = 0; i < client_addrs.size(); i++){
             if (client_addrs[i].sin_addr.s_addr == client_addr.sin_addr.s_addr && client_addrs[i].sin_port == client_addr.sin_port){
                 found = true;
@@ -70,22 +82,24 @@ int main(){
             new_client = client_addr;
             client_addrs.push_back(new_client);
             cout << "new client" << endl;
+            clientTimes.push_back(0.0); 
             index = client_addrs.size() - 1;
+            clientTimes[index] = 0;
         }
 
         if (strncmp(bufferRec, "killUser", bytes) == 0){
-            cout << "removing user" << endl;
-            sockaddr_in tempClient = client_addrs[index];
-            client_addrs[index] = client_addrs[client_addrs.size() - 1];
-            client_addrs.pop_back();
+            killUser(index);
         }
         //get request and handle it
         char buffer[1024] = { 0 };
         strcpy(buffer, "hello from the server");
 
         for (int i = 0; i < client_addrs.size(); i++){
+            clientTimes[i] += difftime(time(0), prev);
             sendto(sock, buffer, sizeof(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
         }
+
+        prev = time(0);
 
         //send it, kinda strange, not nessesary but will work
     }
