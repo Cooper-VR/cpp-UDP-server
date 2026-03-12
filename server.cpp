@@ -1,39 +1,22 @@
 #include <iostream>
 #include <cstring>
+#include <ratio>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string>
 #include <vector>
-#include <time.h>
+#include <chrono>
+#include <thread>
+#include "serverHelper.h"
 
 using namespace std;
 
-vector<sockaddr_in> client_addrs;
-vector<double> clientTimes;
+const int TICK_MS = 16;
 
-void killUser(int index){
-    cout << "removing user" << endl;
-    sockaddr_in tempClient = client_addrs[index];
-    double time = clientTimes[index];
-    clientTimes[clientTimes.size() - 1] = clientTimes[index];
-    client_addrs[index] = client_addrs[client_addrs.size() - 1];
-    client_addrs.pop_back();
-    clientTimes.pop_back();
-
-}
 
 int main(){
-
-    time_t prev = time(0);
-    //first we make a socket to put everything through
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-
-    char ip [INET_ADDRSTRLEN] = "";
-
-    //we need to make a struct that is binded to the socket
-    struct sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_port = htons(7777);
     address.sin_addr.s_addr = INADDR_ANY;
@@ -57,51 +40,20 @@ int main(){
         //we make a client socket
         sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
+
+        auto start = chrono::steady_clock::now();
+
+        recieveData(&client_addr, &client_len);
+        sendData(client_len);
+
+        auto end = chrono::steady_clock::now();
+
+        auto elapsed = chrono::duration_cast<chrono::milliseconds>(end - start);
+
+        if (elapsed.count() < TICK_MS){
+            this_thread::sleep_for(chrono::milliseconds(TICK_MS - elapsed.count()));
+        }
         
-        char bufferRec[1024] = { 0 };
-        int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), 0,  (sockaddr*)&client_addr, &client_len);
-        if (bytes < 0){
-            perror("recvfrom failed");
-            break;
-        }
-
-
-
-        bool found = false;
-        int index = 0;
-        for (int i = 0; i < client_addrs.size(); i++){
-            if (client_addrs[i].sin_addr.s_addr == client_addr.sin_addr.s_addr && client_addrs[i].sin_port == client_addr.sin_port){
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
-        if (!found){
-            sockaddr_in new_client;
-            new_client = client_addr;
-            client_addrs.push_back(new_client);
-            cout << "new client" << endl;
-            clientTimes.push_back(0.0); 
-            index = client_addrs.size() - 1;
-            clientTimes[index] = 0;
-        }
-
-        if (strncmp(bufferRec, "killUser", bytes) == 0){
-            killUser(index);
-        }
-        //get request and handle it
-        char buffer[1024] = { 0 };
-        strcpy(buffer, "hello from the server");
-
-        for (int i = 0; i < client_addrs.size(); i++){
-            clientTimes[i] += difftime(time(0), prev);
-            sendto(sock, buffer, sizeof(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
-        }
-
-        prev = time(0);
-
-        //send it, kinda strange, not nessesary but will work
     }
     close(sock);
 
