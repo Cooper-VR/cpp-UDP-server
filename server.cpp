@@ -26,10 +26,10 @@ void threadedTimer(){
         this_thread::sleep_for(chrono::milliseconds(100));
 
         lock_guard<mutex> lock(clientMutex);
-        for (int i = (int)clientTimeouts.size()-1; i >= 0; i--){
-            clientTimeouts[i] += elapsed.count();
-            if (clientTimeouts[i] > 10000){
-                coutMessage = "killing user -> " + clientTimeouts[i];
+        for (int i = (int)Clients.size()-1; i >= 0; i--){
+            Clients[i].timeout += elapsed.count();
+            if (Clients[i].timeout > 10000){
+                coutMessage = "killing user -> " + Clients[i].timeout;
                 killUser(i);
             }
         }
@@ -76,10 +76,8 @@ int main(){
         clear();
 
         mvprintw(0, 0, "Server Running");
-        mvprintw(4, 0, "Timeouts: 2000");
-        mvprintw(2, 0, "Clients: %d", client_addrs.size());
-    mvprintw(2, 0, "Clients: %d", client_addrs.size());
-    mvprintw(2, 0, "Clients: %d", client_addrs.size());
+        mvprintw(4, 0, "Timeouts: 10000");
+        mvprintw(2, 0, "Clients: %d", Clients.size());
 
         //we make a client socket
         sockaddr_in client_addr;

@@ -22,10 +22,15 @@ int sock = socket(AF_INET, SOCK_DGRAM, 0);
 char ip [INET_ADDRSTRLEN] = "";
 struct sockaddr_in address{};
 
-vector<sockaddr_in> client_addrs;
-vector<int> clientTimeouts;
-vector<string> lastMessages;
-vector<uint16_t> client_id;
+struct Client{
+    sockaddr_in addr;
+    int timeout;
+    string lastMessage;
+    uint16_t id;
+    uint16_t ping;
+} typedef Client ;
+
+vector<Client> Clients;
 
 string coutMessage;
 
@@ -36,8 +41,8 @@ uint16_t generateUniqueId() {
 
     while(true) {
         bool used = false;
-        for (int i = 0; i < client_id.size(); i++) {
-            if(client_id[i] == nextId) {
+        for (int i = 0; i < Clients.size(); i++) {
+            if(Clients[i].id == nextId) {
                 used = true;
                 break;
             }
@@ -51,41 +56,31 @@ uint16_t generateUniqueId() {
 void sendData(socklen_t client_len, const char* data, size_t length){
     //get request and handle it
 
-    for (int i = 0; i < client_addrs.size(); i++){
+    for (int i = 0; i < Clients.size(); i++){
 
         unsigned char flag  = data[0]; // first byte
         uint16_t msgId = static_cast<unsigned char>(data[1])
             | (static_cast<unsigned char>(data[2]) << 8); // little-endian
 
         // skip sending to the client that owns this ID if it's a new-user flag
-        if (flag == 1 && msgId != client_id[i]) {
+        if (flag == 1 && msgId != Clients[i].id) {
             continue; // do not send this packet back to the same client
         }
 
-        sendto(sock, data, length, 0, (sockaddr*)&client_addrs[i], client_len);
+        sendto(sock, data, length, 0, (sockaddr*)&Clients[i].addr, client_len);
 
-        mvprintw(6+(i*2), 0, to_string(client_id[i]).c_str());
-        mvprintw(6+(i*2), 16, lastMessages[i].c_str());
-        mvprintw(6+(i*2), 128, to_string(clientTimeouts[i]).c_str());
+        mvprintw(6+(i*2), 0, to_string(Clients[i].id).c_str());
+        mvprintw(6+(i*2), 16, Clients[i].lastMessage.c_str());
+        mvprintw(6+(i*2), 128, to_string(Clients[i].timeout).c_str());
 
     }
 }
 
 void killUser(int index){
     coutMessage = " removing user";
-    sockaddr_in tempClient = client_addrs[index];
-    int tempTime = clientTimeouts[index];
-    string tempMsg = lastMessages[index];
 
-    client_addrs[index] = client_addrs[client_addrs.size() - 1];
-    clientTimeouts[index] = clientTimeouts[clientTimeouts.size() - 1];
-    lastMessages[index] = lastMessages[lastMessages.size() - 1];
-    client_id[index] = client_id[client_id.size() - 1];
-    clientTimeouts.pop_back();
-    client_addrs.pop_back();
-    lastMessages.pop_back();
-    client_id.pop_back();
-
+    Clients[index] = Clients[Clients.size() - 1];
+    Clients.pop_back();
 }
 
 void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
@@ -102,8 +97,8 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
         bool found = false;
         int index = 0;
         lock_guard<mutex> lock(clientMutex);
-        for (int i = 0; i < client_addrs.size(); i++){
-            if (client_addrs[i].sin_addr.s_addr == client_addr->sin_addr.s_addr && client_addrs[i].sin_port == client_addr->sin_port){
+        for (int i = 0; i < Clients.size(); i++){
+            if (Clients[i].addr.sin_addr.s_addr == client_addr->sin_addr.s_addr && Clients[i].addr.sin_port == client_addr->sin_port){
                 found = true;
                 index = i;
                 break;
@@ -112,17 +107,19 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
 
         if (!found){
             sockaddr_in new_client;
-            new_client = *client_addr;
-            client_addrs.push_back(new_client);
-            clientTimeouts.push_back(0);
-            lastMessages.push_back("");
+            Client newClient;
+            newClient.addr = *client_addr;
+            newClient.timeout = 0;
+            newClient.lastMessage = "";
             uint16_t newID = generateUniqueId();
-            client_id.push_back(newID);
+            newClient.id = newID;
+            Clients.push_back(newClient);
+
             coutMessage = "new client";
-            index = client_addrs.size() - 1;
+            index = Clients.size() - 1;
         }
 
-        clientTimeouts[index] = 0;
+        Clients[index].timeout = 0;
 
         std::stringstream ss;
         for (int i = 0; i < 15; i++) {
@@ -132,13 +129,13 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
                 << " ";
         }
 
-        lastMessages[index] = ss.str();
+        Clients[index].lastMessage = ss.str();
 
         if(bufferRec[0] == 1){
             // new user
             if(!found){
                 char buffer[32] = {0};
-                uint16_t id = client_id[index];
+                uint16_t id = Clients[index].id;
 
                 buffer[0] = 1;                        // flag
                 buffer[1] = static_cast<char>(id & 0xFF);        // low byte
