@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <string>
+#include <signal.h>
 
 using namespace std;
 
@@ -25,7 +26,7 @@ int main(){
     address.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     //this is so that we can reuse the socket and not have to wait a min after useage
-    
+
     string msg = "hello from the client";
 
     while(1){

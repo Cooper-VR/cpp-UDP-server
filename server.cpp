@@ -22,9 +22,10 @@ void threadedTimer(){
     while(1){
 
         start = chrono::steady_clock::now();
+        this_thread::sleep_for(chrono::milliseconds(100));
 
         lock_guard<mutex> lock(clientMutex);
-        for (int i = 0; i < clientTimeouts.size(); i++){
+        for (int i = (int)clientTimeouts.size()-1; i > 0; i--){
             clientTimeouts[i] += elapsed.count();
             if (clientTimeouts[i] > 10000){
                 coutMessage = "killing user -> " + clientTimeouts[i];
@@ -50,7 +51,11 @@ int main(){
 
     //this is so that we can reuse the socket and not have to wait a min after useage
     int opt = 1;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
 
     //we then bind the socket to the struct
     int bindRes = bind(sock, (sockaddr*)&address, sizeof(address));
@@ -75,7 +80,6 @@ int main(){
         socklen_t client_len = sizeof(client_addr);
 
         auto start = chrono::steady_clock::now();
-
 
         recieveData(&client_addr, &client_len);
         sendData(client_len);

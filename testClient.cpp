@@ -13,7 +13,7 @@ struct sockaddr_in address{};
 
 void handle_exit(int sig){
     string msg = "killUser";
-    sendto(sock, msg.c_str(), sizeof(msg), 0, (sockaddr*)&address, sizeof(address));
+    sendto(sock, msg.c_str(), msg.size(), 0, (sockaddr*)&address, sizeof(address));
     cout << "killed user" << endl;
     close(sock);
     exit(0);

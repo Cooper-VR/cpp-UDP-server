@@ -1,3 +1,4 @@
+#include <sched.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -40,46 +41,50 @@ void killUser(int index){
 }
 
 void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
-    char bufferRec[1024] = { 0 };
-    int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), 0,  (sockaddr*)client_addr, client_len);
-    if (bytes < 0){
-        perror("recvfrom failed");
-        return;
-    }
-
-
-
-    bool found = false;
-    int index = 0;
-    lock_guard<mutex> lock(clientMutex);
-    for (int i = 0; i < client_addrs.size(); i++){
-        if (client_addrs[i].sin_addr.s_addr == client_addr->sin_addr.s_addr && client_addrs[i].sin_port == client_addr->sin_port){
-            found = true;
-            index = i;
+    while(1){
+        char bufferRec[1024] = { 0 };
+        int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), MSG_DONTWAIT,  (sockaddr*)client_addr, client_len);
+        if (bytes < 0){
+            perror("recvfrom failed");
             break;
         }
+
+        bufferRec[bytes] = '\0';
+        string msg(bufferRec);
+
+
+
+
+        bool found = false;
+        int index = 0;
+        lock_guard<mutex> lock(clientMutex);
+        for (int i = 0; i < client_addrs.size(); i++){
+            if (client_addrs[i].sin_addr.s_addr == client_addr->sin_addr.s_addr && client_addrs[i].sin_port == client_addr->sin_port){
+                found = true;
+                index = i;
+                break;
+            }
+        }
+
+        if (!found){
+            sockaddr_in new_client;
+            new_client = *client_addr;
+            client_addrs.push_back(new_client);
+            clientTimeouts.push_back(0);
+            lastMessages.push_back("");
+            coutMessage = "new client";
+            index = client_addrs.size() - 1;
+        }
+
+        clientTimeouts[index] = 0;
+        lastMessages[index] = bufferRec;
+
+
+        if (msg == "killUser"){
+            coutMessage = "got kill message";
+            killUser(index);
+        }
     }
-
-    if (!found){
-        sockaddr_in new_client;
-        new_client = *client_addr;
-        client_addrs.push_back(new_client);
-        clientTimeouts.push_back(0);
-        lastMessages.push_back("");
-        coutMessage = "new client";
-        index = client_addrs.size() - 1;
-    }
-
-    clientTimeouts[index] = 0;
-    lastMessages[index] = bufferRec;
-
-    if (strncmp(bufferRec, "killUser", bytes) == 0){
-        coutMessage = "got kill message";
-        killUser(index);
-    }
-
-
-
 }
 
 void sendData(socklen_t client_len){
