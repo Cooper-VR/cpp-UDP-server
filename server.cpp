@@ -47,11 +47,24 @@ void threadedTimer(){
     }
 }
 
-int main(){
+
+void initUI()
+{
     initscr();
+    cbreak();
     noecho();
     curs_set(0);
 
+    int h, w;
+    getmaxyx(stdscr, h, w);
+
+    // bottom half of screen for logs
+    logWin = newwin(h/2, w, h/2, 0);
+    scrollok(logWin, TRUE);
+}
+
+int main(){
+    initUI();
     address.sin_family = AF_INET;
     address.sin_port = htons(7777);
     address.sin_addr.s_addr = INADDR_ANY;

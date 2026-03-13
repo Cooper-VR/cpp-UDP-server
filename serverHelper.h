@@ -17,7 +17,7 @@
 using namespace std;
 
 mutex clientMutex;
-
+WINDOW* logWin;
 int sock = socket(AF_INET, SOCK_DGRAM, 0);
 char ip [INET_ADDRSTRLEN] = "";
 struct sockaddr_in address{};
@@ -76,54 +76,60 @@ void regularMessageAction(int index){
     }
 }
 
-void sendData(socklen_t client_len, const char* data, size_t length){
-    //get request and handle it
-
+void sendData(socklen_t client_len, const char* data, size_t length)
+{
     size_t lengthOfData;
-    for (int i = 0; i < num_clients; i++){
 
-        unsigned char flag  = data[0]; // first byte
-        
-        uint16_t msgId = static_cast<unsigned char>(data[1])
-            | (static_cast<unsigned char>(data[2]) << 8); // little-endian
+    for (int i = 0; i < Clients.size(); i++)
+    {
+        unsigned char flag = data[0];
 
-        switch(flag){
-            case 0:
-                lengthOfData = 15;
-                break;
-            case 1:
-                lengthOfData = 3;
-                break;
-            case 2:
-                lengthOfData = 3;
-                break;
-            case 3:
-                //this will never happen yet, we get hits not send them, yet
-                lengthOfData = 23;
-                break;
+        uint16_t msgId =
+            static_cast<unsigned char>(data[1]) |
+            (static_cast<unsigned char>(data[2]) << 8);
+
+        switch(flag)
+        {
+            case 0: lengthOfData = 15; break;
+            case 1: lengthOfData = 3;  break;
+            case 2: lengthOfData = 3;  break;
+            case 3: lengthOfData = 23; break;
+
             case 4:
-                //tell client to send their data
                 Clients[i].sendTime = serverTime;
-                //so: flag | id | time
                 lengthOfData = 3;
+                break;
+
             default:
                 lengthOfData = 15;
                 break;
         }
 
-        if (flag == 1 && msgId != Clients[i].id) {
+        if (flag == 1 && msgId != Clients[i].id)
             continue;
-        }
 
-        sendto(sock, data, lengthOfData, 0, (sockaddr*)&Clients[i].addr, client_len);
+        sendto(sock, data, lengthOfData, 0,
+               (sockaddr*)&Clients[i].addr, client_len);
 
-        mvprintw(6+(i*2), 0, to_string(Clients[i].id).c_str());
-        mvprintw(6+(i*2), 0, "offset: %d", Clients[i].server_offset);
-        mvprintw(6+(i*2), 128, to_string(Clients[i].timeout).c_str());
+        // ---- client info section ----
+        mvprintw(6 + (i*2), 0,  "ID: %d", Clients[i].id);
+        mvprintw(6 + (i*2), 20, "Offset: %llu", Clients[i].server_offset);
+        mvprintw(6 + (i*2), 40, "Timeout: %d", Clients[i].timeout);
 
+        // ---- packet log ----
+        wprintw(logWin, "Send -> Client %d | flag=%d | bytes=%zu\n",
+                Clients[i].id, flag, lengthOfData);
+
+        wprintw(logWin, "Data: ");
+        for(int j = 0; j < lengthOfData; j++)
+            wprintw(logWin, "%02X ", (unsigned char)data[j]);
+
+        wprintw(logWin, "\n\n");
     }
-}
 
+    refresh();
+    wrefresh(logWin);
+}
 void killUser(int index){
     coutMessage = " removing user";
 
