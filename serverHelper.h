@@ -10,6 +10,7 @@
 #include <ratio>
 #include <mutex>
 #include <ncurses.h>
+#include <sstream>
 
 using namespace std;
 
@@ -42,7 +43,7 @@ void killUser(int index){
 
 void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
     while(1){
-        char bufferRec[1024] = { 0 };
+        char bufferRec[2048] = { 0 };
         int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), MSG_DONTWAIT,  (sockaddr*)client_addr, client_len);
         if (bytes < 0){
             perror("recvfrom failed");
@@ -88,11 +89,14 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
 void sendData(socklen_t client_len){
     //get request and handle it
     char buffer[1024] = { 0 };
-    strcpy(buffer, "hello from the server");
 
     lock_guard<mutex> lock(clientMutex);
     mvprintw(2, 0, "Clients: %d", client_addrs.size());
     for (int i = 0; i < client_addrs.size(); i++){
+        stringstream ss;
+        ss << "hello from server to client number: ";
+        ss << i;
+        strcpy(buffer, ss.str().c_str());
         sendto(sock, buffer, strlen(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
         mvprintw(6+(i*2), 0, lastMessages[i].c_str());
         mvprintw(6+(i*2), 32, to_string(clientTimeouts[i]).c_str());
