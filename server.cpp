@@ -15,6 +15,12 @@ using namespace std;
 
 const int TICK_MS = 16;
 
+auto serverStart = chrono::steady_clock::now();
+auto offsetStart = chrono::steady_clock::now();
+auto offsetEnd = chrono::steady_clock::now();
+auto offsetElasped = chrono::duration_cast<chrono::milliseconds>(offsetEnd - offsetStart);
+
+
 void threadedTimer(){
     auto start = chrono::steady_clock::now();
     auto end = chrono::steady_clock::now();
@@ -71,22 +77,33 @@ int main(){
 
     //detach makes it run at the same time
     t.detach();
-
+    offsetStart = chrono::steady_clock::now();
+    offsetEnd = chrono::steady_clock::now();
     while (1){
         clear();
 
         mvprintw(0, 0, "Server Running");
         mvprintw(4, 0, "Timeouts: 10000");
         mvprintw(2, 0, "Clients: %d", Clients.size());
+        mvprintw(2, 0, "Time: %d", serverTime);
 
         //we make a client socket
         sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
 
         auto start = chrono::steady_clock::now();
+        serverTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - serverStart
+                    ).count();
 
-
-        recieveData(&client_addr, &client_len);
+        auto offsetElasped = chrono::duration_cast<chrono::milliseconds>(offsetEnd - offsetStart);
+        if (offsetElasped.count() > 10000){
+            recieveData(&client_addr, &client_len, true);
+            offsetStart = chrono::steady_clock::now();
+            coutMessage = "getting offsets";
+        }else{
+            recieveData(&client_addr, &client_len, false);
+        }
         mvprintw(0, 32, coutMessage.c_str());
 
         refresh();
@@ -99,6 +116,8 @@ int main(){
         if (elapsed.count() < TICK_MS){
             this_thread::sleep_for(chrono::milliseconds(TICK_MS - elapsed.count()));
         }
+
+        offsetEnd = chrono::steady_clock::now();
         
     }
 

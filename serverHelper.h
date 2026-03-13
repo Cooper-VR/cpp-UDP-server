@@ -36,6 +36,7 @@ struct Client{
     vector<p_msgs> pastMessages;
     uint16_t id;
     uint64_t server_offset;
+    uint64_t sendTime;
 } typedef Client ;
 
 vector<Client> Clients;
@@ -102,8 +103,9 @@ void sendData(socklen_t client_len, const char* data, size_t length){
                 break;
             case 4:
                 //tell client to send their data
-                //so: flag | id | pos | time
-                lengthOfData = 23;
+                Clients[i].sendTime = serverTime;
+                //so: flag | id | time
+                lengthOfData = 3;
             default:
                 lengthOfData = 15;
                 break;
@@ -116,6 +118,7 @@ void sendData(socklen_t client_len, const char* data, size_t length){
         sendto(sock, data, lengthOfData, 0, (sockaddr*)&Clients[i].addr, client_len);
 
         mvprintw(6+(i*2), 0, to_string(Clients[i].id).c_str());
+        mvprintw(6+(i*2), 0, "offset: %d", Clients[i].server_offset);
         mvprintw(6+(i*2), 128, to_string(Clients[i].timeout).c_str());
 
     }
@@ -129,7 +132,7 @@ void killUser(int index){
     num_clients--;
 }
 
-void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
+void recieveData(sockaddr_in* client_addr, socklen_t *client_len, bool getOffsets){
     while(1){
         int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), MSG_DONTWAIT,  (sockaddr*)client_addr, client_len);
         if (bytes < 0){
@@ -139,19 +142,12 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
             break;
         }
 
-
-        bool found = false;
-        int index = 0;
+        char flag = bufferRec[0];
+        uint16_t index = static_cast<unsigned char>(bufferRec[1])
+            | (static_cast<unsigned char>(bufferRec[2]) << 8); // little-endian
+        
         lock_guard<mutex> lock(clientMutex);
-        for (int i = 0; i < num_clients; i++){
-            if (Clients[i].addr.sin_addr.s_addr == client_addr->sin_addr.s_addr && Clients[i].addr.sin_port == client_addr->sin_port){
-                found = true;
-                index = i;
-                break;
-            }
-        }
-
-        if (!found){
+        if (flag == 1){
             sockaddr_in new_client;
             Client newClient;
             newClient.addr = *client_addr;
@@ -163,8 +159,15 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
 
             coutMessage = "new client";
             index = num_clients - 1;
+        }else{
+            //change this once we make it a hash map
+            for(int i = 0; i < num_clients; i++){
+                if (index == Clients[i].id){
+                    //found them
+                    index = i;
+                }
+            }
         }
-
         Clients[index].timeout = 0;
 
         std::stringstream ss;
@@ -175,35 +178,75 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
                 << " ";
         }
 
-        //1=new user; 2=kill; 0=regular; 3=hits
+        char flag_backup = flag;
+        if (getOffsets){
+            flag = 4;
+        }
+        //check to see if we need offset update
+        //if yes then set the buffer, sendData, and CONTINUE, dont wanna send twice
+        
 
-        char flag = bufferRec[0];
+        //1=new user; 2=kill; 0=regular; 3=hits
         switch(flag){
             case 0:
                 regularMessageAction(index);
                 break;
+
             case 1:
-                if(!found){
+                {
                     char buffer[32] = {0};
                     uint16_t id = Clients[index].id;
 
-                    buffer[0] = 1;                        // flag
-                    buffer[1] = static_cast<char>(id & 0xFF);        // low byte
-                    buffer[2] = static_cast<char>((id >> 8) & 0xFF); // high bytes
+                    buffer[0] = 1;
+                    buffer[1] = static_cast<char>(id & 0xFF);
+                    buffer[2] = static_cast<char>((id >> 8) & 0xFF);
+
                     memcpy(bufferRec, buffer, 3);
+                    break;
                 }
 
-                break;
             case 2:
                 killUser(index);
                 break;
+
             case 3:
-                //this will never happen yet, we get hits not send them, yet
                 regularMessageAction(index);
                 break;
+
             case 4:
-                regularMessageAction(index);
-                //we got the clients timer back;
+                {
+                    uint16_t id = Clients[index].id;
+                    bufferRec[0] = flag;
+                    bufferRec[1] = static_cast<char>(id & 0xFF);
+                    bufferRec[2] = static_cast<char>((id >> 8) & 0xFF);
+
+
+                    if (flag_backup == 0) regularMessageAction(index);
+                    break;
+                }
+            case 5:
+                {
+                    uint16_t id = Clients[index].id;
+                    bufferRec[0] = flag;
+                    bufferRec[1] = static_cast<char>(id & 0xFF);
+                    bufferRec[2] = static_cast<char>((id >> 8) & 0xFF);
+                    uint64_t clientTime =
+                        (uint64_t)(unsigned char)bufferRec[3]
+                        | ((uint64_t)(unsigned char)bufferRec[4] << 8)
+                        | ((uint64_t)(unsigned char)bufferRec[5] << 16)
+                        | ((uint64_t)(unsigned char)bufferRec[6] << 24)
+                        | ((uint64_t)(unsigned char)bufferRec[7] << 32)
+                        | ((uint64_t)(unsigned char)bufferRec[8] << 40)
+                        | ((uint64_t)(unsigned char)bufferRec[9] << 48)
+                        | ((uint64_t)(unsigned char)bufferRec[10] << 56);
+
+                    coutMessage = "got offset ";
+                    Clients[index].server_offset = (serverTime + Clients[index].sendTime) / 2 - clientTime;
+                    break;
+
+                }
+
+
             default:
                 regularMessageAction(index);
                 break;
