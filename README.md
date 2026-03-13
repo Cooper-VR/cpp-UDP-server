@@ -28,7 +28,7 @@ This project uses POSIX socket headers and `ncurses`, so it is intended for Linu
 Example build command:
 
 ```bash
-g++ -std=c++17 -O2 -pthread server.cpp -lncurses -o server
+g++ server.cpp -lncurses -o server
 ```
 
 ## Run
