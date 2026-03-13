@@ -61,7 +61,7 @@ uint16_t generateUniqueId() {
     }
 }
 
-void regularMessageAction(){
+void regularMessageAction(int index){
     struct p_msgs newMsg;
     strcpy(newMsg.m, bufferRec);
     newMsg.t = serverTime;
@@ -102,6 +102,7 @@ void sendData(socklen_t client_len, const char* data, size_t length){
                 break;
             case 4:
                 //tell client to send their data
+                //so: flag | id | pos | time
                 lengthOfData = 23;
             default:
                 lengthOfData = 15;
@@ -179,7 +180,7 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
         char flag = bufferRec[0];
         switch(flag){
             case 0:
-                regularMessageAction();
+                regularMessageAction(index);
                 break;
             case 1:
                 if(!found){
@@ -198,13 +199,13 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
                 break;
             case 3:
                 //this will never happen yet, we get hits not send them, yet
-                regularMessageAction();
+                regularMessageAction(index);
                 break;
             case 4:
-                regularMessageAction();
+                regularMessageAction(index);
                 //we got the clients timer back;
             default:
-                regularMessageAction();
+                regularMessageAction(index);
                 break;
         }
 
