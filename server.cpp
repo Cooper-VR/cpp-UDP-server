@@ -25,7 +25,7 @@ void threadedTimer(){
         this_thread::sleep_for(chrono::milliseconds(100));
 
         lock_guard<mutex> lock(clientMutex);
-        for (int i = (int)clientTimeouts.size()-1; i > 0; i--){
+        for (int i = (int)clientTimeouts.size()-1; i >= 0; i--){
             clientTimeouts[i] += elapsed.count();
             if (clientTimeouts[i] > 10000){
                 coutMessage = "killing user -> " + clientTimeouts[i];

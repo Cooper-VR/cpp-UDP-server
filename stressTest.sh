@@ -11,7 +11,7 @@ for ((i=1;i<=NUM_CLIENTS;i++))
 do
     (
         # Start the client in the background
-        ./client2 &
+        ./client &
         pid=$!
 
         # Calculate random lifetime between 5 and 15 seconds
