@@ -84,6 +84,8 @@ int main(){
         char* recivedPos;
 
         recivedPos = recieveData(&client_addr, &client_len);
+        //if (recivedPos == nullptr) continue;
+        
         sendData(client_len, recivedPos, 15);
 
         mvprintw(0, 32, coutMessage.c_str());
