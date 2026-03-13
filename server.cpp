@@ -13,7 +13,7 @@
 
 using namespace std;
 
-const int TICK_MS = 0;
+const int TICK_MS = 16;
 
 void threadedTimer(){
     auto start = chrono::steady_clock::now();
@@ -77,6 +77,9 @@ int main(){
 
         mvprintw(0, 0, "Server Running");
         mvprintw(4, 0, "Timeouts: 2000");
+        mvprintw(2, 0, "Clients: %d", client_addrs.size());
+    mvprintw(2, 0, "Clients: %d", client_addrs.size());
+    mvprintw(2, 0, "Clients: %d", client_addrs.size());
 
         //we make a client socket
         sockaddr_in client_addr;
@@ -86,10 +89,10 @@ int main(){
 
         char* recivedPos;
 
-        recivedPos = recieveData(&client_addr, &client_len);
+        recieveData(&client_addr, &client_len);
         //if (recivedPos == nullptr) continue;
         
-        sendData(client_len, recivedPos, 15);
+//        sendData(client_len, recivedPos, 15);
 
         mvprintw(0, 32, coutMessage.c_str());
 

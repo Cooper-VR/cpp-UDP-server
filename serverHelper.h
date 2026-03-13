@@ -50,9 +50,7 @@ uint16_t generateUniqueId() {
 
 void sendData(socklen_t client_len, const char* data, size_t length){
     //get request and handle it
-    lock_guard<mutex> lock(clientMutex);
 
-    mvprintw(2, 0, "Clients: %d", client_addrs.size());
     for (int i = 0; i < client_addrs.size(); i++){
 
         unsigned char flag  = data[0]; // first byte
@@ -90,7 +88,7 @@ void killUser(int index){
 
 }
 
-char* recieveData(sockaddr_in* client_addr, socklen_t *client_len){
+void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
     while(1){
         int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), MSG_DONTWAIT,  (sockaddr*)client_addr, client_len);
         if (bytes < 0){
@@ -99,8 +97,6 @@ char* recieveData(sockaddr_in* client_addr, socklen_t *client_len){
             perror("recvfrom failed");
             break;
         }
-
-
 
 
         bool found = false;
@@ -148,17 +144,13 @@ char* recieveData(sockaddr_in* client_addr, socklen_t *client_len){
                 buffer[1] = static_cast<char>(id & 0xFF);        // low byte
                 buffer[2] = static_cast<char>((id >> 8) & 0xFF); // high bytes
                 memcpy(bufferRec, buffer, 3);
-                return bufferRec;
-
             }
         }
         else if (bufferRec[0] == 2){
             killUser(index);
         }
 
-        return bufferRec;
+        sendData(*client_len, bufferRec, 15);
+
     }
-    return bufferRec;
 }
-
-
