@@ -52,7 +52,7 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
         bufferRec[bytes] = '\0';
         string msg(bufferRec);
 
-
+        coutMessage = "got this" + msg;
 
 
         bool found = false;
