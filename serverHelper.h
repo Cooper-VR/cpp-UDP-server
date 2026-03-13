@@ -29,7 +29,7 @@ vector<uint16_t> client_id;
 
 string coutMessage;
 
-char* bufferRec = new char[2048]();
+char bufferRec[32];
 
 uint16_t generateUniqueId() {
     static uint16_t nextId = 1;
@@ -51,6 +51,7 @@ uint16_t generateUniqueId() {
 void sendData(socklen_t client_len, const char* data, size_t length){
     //get request and handle it
     lock_guard<mutex> lock(clientMutex);
+
     mvprintw(2, 0, "Clients: %d", client_addrs.size());
     for (int i = 0; i < client_addrs.size(); i++){
 
@@ -73,7 +74,7 @@ void sendData(socklen_t client_len, const char* data, size_t length){
 }
 
 void killUser(int index){
-    coutMessage += " removing user";
+    coutMessage = " removing user";
     sockaddr_in tempClient = client_addrs[index];
     int tempTime = clientTimeouts[index];
     string tempMsg = lastMessages[index];
@@ -93,9 +94,13 @@ char* recieveData(sockaddr_in* client_addr, socklen_t *client_len){
     while(1){
         int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), MSG_DONTWAIT,  (sockaddr*)client_addr, client_len);
         if (bytes < 0){
+            if (errno == EWOULDBLOCK || errno == EAGAIN)
+                break; // no more packets
             perror("recvfrom failed");
             break;
         }
+
+
 
 
         bool found = false;
@@ -133,9 +138,6 @@ char* recieveData(sockaddr_in* client_addr, socklen_t *client_len){
 
         lastMessages[index] = ss.str();
 
-        coutMessage = ss.str();
-
- 
         if(bufferRec[0] == 1){
             // new user
             if(!found){

@@ -9,10 +9,11 @@
 #include <mutex>
 #include "serverHelper.h"
 #include <ncurses.h>
+#include <fcntl.h>
 
 using namespace std;
 
-const int TICK_MS = 16;
+const int TICK_MS = 0;
 
 void threadedTimer(){
     auto start = chrono::steady_clock::now();
@@ -55,6 +56,8 @@ int main(){
     tv.tv_sec = 0;
     tv.tv_usec = 100000;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    fcntl(sock, F_SETFL, O_NONBLOCK);
 
 
     //we then bind the socket to the struct
