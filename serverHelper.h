@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <sched.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -11,6 +12,7 @@
 #include <mutex>
 #include <ncurses.h>
 #include <sstream>
+#include <iomanip> 
 
 using namespace std;
 
@@ -23,8 +25,28 @@ struct sockaddr_in address{};
 vector<sockaddr_in> client_addrs;
 vector<int> clientTimeouts;
 vector<string> lastMessages;
+vector<uint16_t> client_id;
 
 string coutMessage;
+
+char bufferRec[2048] = { 0 };
+
+uint16_t generateUniqueId() {
+    static uint16_t nextId = 1;
+
+    while(true) {
+        bool used = false;
+        for (int i = 0; i < client_id.size(); i++) {
+            if(client_id[i] == nextId) {
+                used = true;
+                break;
+            }
+        }
+
+        if(!used) return nextId++;
+        nextId++;
+    }
+}
 
 void killUser(int index){
     coutMessage += " removing user";
@@ -35,23 +57,22 @@ void killUser(int index){
     client_addrs[index] = client_addrs[client_addrs.size() - 1];
     clientTimeouts[index] = clientTimeouts[clientTimeouts.size() - 1];
     lastMessages[index] = lastMessages[lastMessages.size() - 1];
+    client_id[index] = client_id[client_id.size() - 1];
     clientTimeouts.pop_back();
     client_addrs.pop_back();
     lastMessages.pop_back();
+    client_id.pop_back();
 
 }
 
-void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
+char* recieveData(sockaddr_in* client_addr, socklen_t *client_len){
     while(1){
-        char bufferRec[2048] = { 0 };
+        *bufferRec = { 0 };
         int bytes = recvfrom(sock, bufferRec, sizeof(bufferRec), MSG_DONTWAIT,  (sockaddr*)client_addr, client_len);
         if (bytes < 0){
             perror("recvfrom failed");
             break;
         }
-
-        bufferRec[bytes] = '\0';
-        string msg(bufferRec);
 
 
         bool found = false;
@@ -71,35 +92,62 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len){
             client_addrs.push_back(new_client);
             clientTimeouts.push_back(0);
             lastMessages.push_back("");
+            uint16_t newID = generateUniqueId();
+            client_id.push_back(newID);
             coutMessage = "new client";
             index = client_addrs.size() - 1;
         }
 
         clientTimeouts[index] = 0;
-        lastMessages[index] = bufferRec;
+        std::stringstream ss;
+        for (int i = 0; i < 15; i++) {
+            ss << "0x" 
+                << std::setw(2) << std::setfill('0') 
+                << std::hex << static_cast<unsigned int>(static_cast<unsigned char>(bufferRec[i])) 
+                << " ";
+        }
 
+        lastMessages[index] = ss.str();
 
-        if (msg == "killUser"){
-            coutMessage = "got kill message";
+        if (bufferRec[0] == 0){
+            //regular
+            return bufferRec;
+        }
+        else if(bufferRec[0] == 1){
+            // new user
+            if(!found){
+                char buffer[32] = {0};
+                uint16_t id = client_id[index];
+
+                buffer[0] = 1;                        // flag
+                buffer[1] = static_cast<char>(id & 0xFF);        // low byte
+                buffer[2] = static_cast<char>((id >> 8) & 0xFF); // high byte
+
+                strcpy(bufferRec, buffer);
+                return bufferRec;
+
+                sendto(sock, buffer, 15, 0, (sockaddr*)&client_addr, *client_len);
+            }
+        }
+        else if (bufferRec[0] == 2){
             killUser(index);
         }
+
+        return bufferRec;
     }
+    return nullptr;
 }
 
-void sendData(socklen_t client_len){
+void sendData(socklen_t client_len, const char* data, size_t length){
     //get request and handle it
-    char buffer[1024] = { 0 };
-
     lock_guard<mutex> lock(clientMutex);
     mvprintw(2, 0, "Clients: %d", client_addrs.size());
     for (int i = 0; i < client_addrs.size(); i++){
-        stringstream ss;
-        ss << "hello from server to client number: ";
-        ss << i;
-        strcpy(buffer, ss.str().c_str());
-        sendto(sock, buffer, strlen(buffer), 0, (sockaddr*)&client_addrs[i], client_len);
-        mvprintw(6+(i*2), 0, lastMessages[i].c_str());
-        mvprintw(6+(i*2), 32, to_string(clientTimeouts[i]).c_str());
+        sendto(sock, data, length, 0, (sockaddr*)&client_addrs[i], client_len);
+
+        mvprintw(6+(i*2), 0, to_string(client_id[i]).c_str());
+        mvprintw(6+(i*2), 16, lastMessages[i].c_str());
+        mvprintw(6+(i*2), 128, to_string(clientTimeouts[i]).c_str());
 
     }
 }

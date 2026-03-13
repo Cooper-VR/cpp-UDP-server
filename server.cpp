@@ -81,8 +81,10 @@ int main(){
 
         auto start = chrono::steady_clock::now();
 
-        recieveData(&client_addr, &client_len);
-        sendData(client_len);
+        char* recivedPos;
+
+        recivedPos = recieveData(&client_addr, &client_len);
+        sendData(client_len, recivedPos, 15);
 
         mvprintw(0, 32, coutMessage.c_str());
 
