@@ -76,7 +76,7 @@ Possible implementation approach:
 - Global mutable state shared across translation units
 - Some packet-size assumptions are fixed in code
 - Minimal protocol validation and error handling
-- Linux/WSL-focused due to socket + ncurses usage
+- Linux/WSL-focused due to socket + ncurses usage / yeah im not touuching windows
 
 ## License
 
