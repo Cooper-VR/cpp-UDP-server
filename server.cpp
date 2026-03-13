@@ -26,7 +26,7 @@ void threadedTimer(){
         this_thread::sleep_for(chrono::milliseconds(100));
 
         lock_guard<mutex> lock(clientMutex);
-        for (int i = (int)Clients.size()-1; i >= 0; i--){
+        for (int i = num_clients-1; i >= 0; i--){
             Clients[i].timeout += elapsed.count();
             if (Clients[i].timeout > 10000){
                 coutMessage = "killing user -> " + Clients[i].timeout;
@@ -85,13 +85,8 @@ int main(){
 
         auto start = chrono::steady_clock::now();
 
-        char* recivedPos;
 
         recieveData(&client_addr, &client_len);
-        //if (recivedPos == nullptr) continue;
-        
-//        sendData(client_len, recivedPos, 15);
-
         mvprintw(0, 32, coutMessage.c_str());
 
         refresh();
