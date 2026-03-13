@@ -258,15 +258,6 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len, bool getOffset
                 break;
         }
 
-        //getting the offset:
-        //if we juust send a clients time itll be offset + latancy, bad
-        //so we could send a serverTime first, wait for the clients time, theeen compare the two
-        //the client should have gotten the server time in the middle of the start and end
-        //the server should then have two server timestamps and one client time, the client send their time, in between the two server times, so the offset is as follows:
-        //(serverTime1 + serverTime2) / 2 - clientTime;
-        //ill send it with a 4 flag, and get with 4. itll happen every 5-10 seconds
-        //so get a start time + endtime leave start, add to end untill elasped > 5-10, then set start=end
-
         sendData(*client_len, bufferRec, 15);
 
     }
