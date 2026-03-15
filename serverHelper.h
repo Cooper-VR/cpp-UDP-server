@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <sched.h>
 #include <sys/socket.h>
@@ -39,6 +41,7 @@ struct Client{
     uint64_t sendTime;
 } typedef Client ;
 
+//maybe change to hash map
 vector<Client> Clients;
 
 string coutMessage;
@@ -93,7 +96,7 @@ void sendData(socklen_t client_len, const char* data, size_t length)
             case 0: lengthOfData = 15; break;
             case 1: lengthOfData = 3;  break;
             case 2: lengthOfData = 3;  break;
-            case 3: lengthOfData = 23; break;
+            case 3: lengthOfData = 3; break;
 
             case 4:
                 Clients[i].sendTime = serverTime;
@@ -107,6 +110,11 @@ void sendData(socklen_t client_len, const char* data, size_t length)
 
         if (flag == 1 && msgId != Clients[i].id)
             continue;
+        else if (flag == 3 && msgId != Clients[i].id){
+            continue;
+            //when sending the hit, only send it to the one person who got hit
+            //flag | id
+        }
 
         sendto(sock, data, lengthOfData, 0,
                (sockaddr*)&Clients[i].addr, client_len);
@@ -188,11 +196,9 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len, bool getOffset
         if (getOffsets){
             flag = 4;
         }
-        //check to see if we need offset update
-        //if yes then set the buffer, sendData, and CONTINUE, dont wanna send twice
         
 
-        //1=new user; 2=kill; 0=regular; 3=hits
+        //1=new user; 2=kill; 0=regular; 3=hits, 4-send need offset, 5-received offset
         switch(flag){
             case 0:
                 regularMessageAction(index);
@@ -216,8 +222,53 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len, bool getOffset
                 break;
 
             case 3:
-                regularMessageAction(index);
-                break;
+                {
+                    //got a 3 means we hit someone
+                    // flag | id | time | remoteID
+                    uint64_t clientTime =
+                        (uint64_t)(unsigned char)bufferRec[3]
+                        | ((uint64_t)(unsigned char)bufferRec[4] << 8)
+                        | ((uint64_t)(unsigned char)bufferRec[5] << 16)
+                        | ((uint64_t)(unsigned char)bufferRec[6] << 24)
+                        | ((uint64_t)(unsigned char)bufferRec[7] << 32)
+                        | ((uint64_t)(unsigned char)bufferRec[8] << 40)
+                        | ((uint64_t)(unsigned char)bufferRec[9] << 48)
+                        | ((uint64_t)(unsigned char)bufferRec[10] << 56);
+
+
+                    clientTime += serverTime;
+                    uint16_t remoteID = 
+                        static_cast<unsigned char>(bufferRec[13]) |
+                        (static_cast<unsigned char>(bufferRec[14]) << 8);
+
+                    //get remotePos based on the server time;
+                    int64_t minTime = 10000000;
+                    uint16_t minIndex;
+                    for(int i = 0; i < Clients[index].pastMessages.size(); i++){
+                        if (clientTime - Clients[index].pastMessages[i].t < minTime - Clients[index].pastMessages[i].t){
+                            minTime = Clients[index].pastMessages[i].t;
+                            minIndex = i;
+                        }
+                    }
+
+                    float x;
+                    float y;
+                    float z;
+
+                    float x_L;
+                    float y_L;
+                    float z_L;
+
+                    float distance = sqrt( pow(x-x_L, 2) + pow(y-y_L, 2) + pow(z-z_L, 2));
+
+                    if (distance < 1){
+                        //hit, send back message
+                        coutMessage = "player hit another";
+                    }
+
+
+                    break;
+                }
 
             case 4:
                 {
