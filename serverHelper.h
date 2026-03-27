@@ -251,6 +251,7 @@ void recieveData(sockaddr_in* client_addr, socklen_t *client_len, bool getOffset
                         }
                     }
 
+
                     float x;
                     float y;
                     float z;
